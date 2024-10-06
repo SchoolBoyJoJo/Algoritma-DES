@@ -160,26 +160,21 @@ def ip_on_binary_rep(binary_representation):
     
     return ip_result_str
 
-def key_in_binary_conv():
-    # Original key (can be changed but it should be 8 char)
-    original_key = 'abcdefgh'
+def key_in_binary_conv(original_key):
     binary_representation_key = ''
     
     for char in original_key:
-    # Convert the characters to binary and concatenate to form a 64-bit binary string
+        # Convert the characters to binary and concatenate to form a 64-bit binary string
         binary_key = format(ord(char), '08b') 
         binary_representation_key += binary_key
 
-    
     return binary_representation_key
 
-def generate_round_keys():
-    
+def generate_round_keys(user_key):
     # Key into binary
-    binary_representation_key = key_in_binary_conv()
+    binary_representation_key = key_in_binary_conv(user_key)
     pc1_key_str = ''.join(binary_representation_key[bit - 1] for bit in pc1_table)
 
-    
     # Split the 56-bit key into two 28-bit halves
     c0 = pc1_key_str[:28]
     d0 = pc1_key_str[28:]
@@ -198,9 +193,9 @@ def generate_round_keys():
         round_keys.append(round_key)
     return round_keys
 
-def encryption(user_input):
+def encryption(user_input, user_key):
     binary_rep_of_input = str_to_bin(user_input)
-    round_keys = generate_round_keys()
+    round_keys = generate_round_keys(user_key)
 
     ip_result_str = ip_on_binary_rep(binary_rep_of_input)
     lpt = ip_result_str[:32]
@@ -241,6 +236,8 @@ def encryption(user_input):
     # Convert binary to Base64
     final_cipher_base64 = base64.b64encode(int(final_cipher_str, 2).to_bytes(8, 'big')).decode('utf-8')
 
+    print('\n')
+
     print("Final Cipher text (ASCII):", final_cipher_ascii)
     print("Final Cipher text (HEX):", final_cipher_hex)
     print("Final Cipher text (Base64):", final_cipher_base64)
@@ -249,11 +246,9 @@ def encryption(user_input):
 
 # decryption of cipher to origional
 
-def decryption(final_cipher):
-    
-    
+def decryption(final_cipher, user_key):
     # Initialize lists to store round keys
-    round_keys = generate_round_keys()
+    round_keys = generate_round_keys(user_key)
     
     # Apply Initial Permutation
     ip_dec_result_str = ip_on_binary_rep(final_cipher)
@@ -267,15 +262,12 @@ def decryption(final_cipher):
     
         # Convert the result back to a string for better visualization
         expanded_result_str = ''.join(expanded_result)
-        # print(expanded_result_str)
+    
         # Round key for the current round
-        round_key_str = round_keys[15-round_num]
+        round_key_str = round_keys[15 - round_num]
     
         # XOR between key and expanded result 
-        xor_result_str = ''
-        for i in range(48):
-            xor_result_str += str(int(expanded_result_str[i]) ^ int(round_key_str[i]))
-    
+        xor_result_str = ''.join(str(int(expanded_result_str[i]) ^ int(round_key_str[i])) for i in range(48))
     
         # Split the 48-bit string into 8 groups of 6 bits each
         six_bit_groups = [xor_result_str[i:i+6] for i in range(0, 48, 6)]
@@ -291,15 +283,10 @@ def decryption(final_cipher):
     
             # Lookup the S-box value
             s_box_value = s_boxes[i][row_bits][col_bits]
-            
-            # Convert the S-box value to a 4-bit binary string and append to the result
             s_box_substituted += format(s_box_value, '04b')
     
         # Apply a P permutation to the result
         p_box_result = [s_box_substituted[i - 1] for i in p_box_table]
-    
-        # Convert the result back to a string for better visualization
-        # p_box_result_str = ''.join(p_box_result)
     
         # Convert LPT to a list of bits for the XOR operation
         lpt_list = list(lpt)
@@ -314,9 +301,6 @@ def decryption(final_cipher):
         lpt = rpt
         rpt = new_rpt_str
     
-        # Print or use the RPT for each round
-    
-    print('\n')
     final_result = rpt + lpt
     # Perform the final permutation (IP-1)
     final_cipher = [final_result[ip_inverse_table[i] - 1] for i in range(64)]
@@ -324,9 +308,9 @@ def decryption(final_cipher):
     # Convert the result back to a string for better visualization
     final_cipher_str = ''.join(final_cipher)
 
-    # Print or use the final cipher
+    print('\n')
 
-    # binary cipher string to ascii
+    # Convert binary cipher string to ascii
     final_cipher_ascii = binary_to_ascii(final_cipher_str)
     print("Decryption of Cipher :", final_cipher_ascii)
 
@@ -334,18 +318,19 @@ def decryption(final_cipher):
 
 # Start
 
-# user input
-user_input = input("Enter a string: ")
+# user input for the string to encrypt
+user_input = input("Enter an 8-string to encrypt: ")
 
+# user input for the key
+user_key = input("Enter an 8-character key: ")
 
-# Encryption
-enc = encryption(user_input)
+# Ensure the user key is exactly 8 characters long
+if len(user_key) != 8:
+    print("Key must be exactly 8 characters long.")
+else:
+    # Encryption
+    enc = encryption(user_input, user_key)
 
-
-# Decryption
-
-# First we'll convert Final Cipher text into binary 
-enc_to_binary = str_to_bin(enc[0])
-
-# we'll call the decryption function 
-dec = decryption(enc_to_binary)
+    # Decryption
+    enc_to_binary = str_to_bin(enc[0])
+    dec = decryption(enc_to_binary, user_key)
