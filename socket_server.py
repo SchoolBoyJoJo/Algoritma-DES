@@ -39,6 +39,7 @@ def handle_client(client_socket, client_address):
             print(f"Error handling client {client_address}: {e}")
             break
 
+    # Hapus client dari daftar jika keluar
     clients.remove(client_socket)
     client_socket.close()
 
