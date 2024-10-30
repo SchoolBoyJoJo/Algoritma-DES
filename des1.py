@@ -194,143 +194,128 @@ def generate_round_keys(user_key):
     return round_keys
 
 def encryption(user_input, user_key):
-    binary_rep_of_input = str_to_bin(user_input)
-    round_keys = generate_round_keys(user_key)
+    # Ensure the plaintext is a multiple of 8 characters by padding with spaces if needed
+    if len(user_input) % 8 != 0:
+        padding_len = 8 - (len(user_input) % 8)
+        user_input += ' ' * padding_len
 
-    ip_result_str = ip_on_binary_rep(binary_rep_of_input)
-    lpt = ip_result_str[:32]
-    rpt = ip_result_str[32:]
+    # Encrypt each 8-character block and store different encodings
+    encrypted_blocks_ascii = []
+    encrypted_blocks_hex = []
+    encrypted_blocks_base64 = []
 
-    for round_num in range(16):
-        expanded_result = [rpt[i - 1] for i in e_box_table]
-        expanded_result_str = ''.join(expanded_result)
-        round_key_str = round_keys[round_num]
-        xor_result_str = ''.join(str(int(expanded_result_str[i]) ^ int(round_key_str[i])) for i in range(48))
-        six_bit_groups = [xor_result_str[i:i+6] for i in range(0, 48, 6)]
+    for i in range(0, len(user_input), 8):
+        block = user_input[i:i+8]
+        binary_rep_of_input = str_to_bin(block)
+        round_keys = generate_round_keys(user_key)
 
-        s_box_substituted = ''
-        for i in range(8):
-            row_bits = int(six_bit_groups[i][0] + six_bit_groups[i][-1], 2)
-            col_bits = int(six_bit_groups[i][1:-1], 2)
-            s_box_value = s_boxes[i][row_bits][col_bits]
-            s_box_substituted += format(s_box_value, '04b')
+        ip_result_str = ip_on_binary_rep(binary_rep_of_input)
+        lpt = ip_result_str[:32]
+        rpt = ip_result_str[32:]
 
-        p_box_result = ''.join(s_box_substituted[i - 1] for i in p_box_table)
-        lpt_list = list(lpt)
-        new_rpt = ''.join(str(int(lpt_list[i]) ^ int(p_box_result[i])) for i in range(32))
-        lpt = rpt
-        rpt = new_rpt
+        for round_num in range(16):
+            expanded_result = [rpt[i - 1] for i in e_box_table]
+            expanded_result_str = ''.join(expanded_result)
+            round_key_str = round_keys[round_num]
+            xor_result_str = ''.join(str(int(expanded_result_str[i]) ^ int(round_key_str[i])) for i in range(48))
+            six_bit_groups = [xor_result_str[i:i+6] for i in range(0, 48, 6)]
 
-    final_result = rpt + lpt
-    final_cipher = [final_result[ip_inverse_table[i] - 1] for i in range(64)]
+            s_box_substituted = ''
+            for i in range(8):
+                row_bits = int(six_bit_groups[i][0] + six_bit_groups[i][-1], 2)
+                col_bits = int(six_bit_groups[i][1:-1], 2)
+                s_box_value = s_boxes[i][row_bits][col_bits]
+                s_box_substituted += format(s_box_value, '04b')
 
-    # Gabungkan list menjadi string
-    final_cipher_str = ''.join(final_cipher)
+            p_box_result = ''.join(s_box_substituted[i - 1] for i in p_box_table)
+            lpt_list = list(lpt)
+            new_rpt = ''.join(str(int(lpt_list[i]) ^ int(p_box_result[i])) for i in range(32))
+            lpt = rpt
+            rpt = new_rpt
 
-    # Convert binary to ASCII
-    final_cipher_ascii = binary_to_ascii(final_cipher_str)
-    
-    # Convert binary to HEX
-    final_cipher_hex = hex(int(final_cipher_str, 2))[2:].upper()
+        final_result = rpt + lpt
+        final_cipher = [final_result[ip_inverse_table[i] - 1] for i in range(64)]
+        final_cipher_str = ''.join(final_cipher)
 
-    # Convert binary to Base64
-    final_cipher_base64 = base64.b64encode(int(final_cipher_str, 2).to_bytes(8, 'big')).decode('utf-8')
+        # Convert binary to ASCII
+        final_cipher_ascii = binary_to_ascii(final_cipher_str)
+        encrypted_blocks_ascii.append(final_cipher_ascii)
 
-    print('\n')
+        # Convert binary to HEX
+        final_cipher_hex = hex(int(final_cipher_str, 2))[2:].upper()
+        encrypted_blocks_hex.append(final_cipher_hex)
 
-    print("Final Cipher text (ASCII):", final_cipher_ascii)
-    print("Final Cipher text (HEX):", final_cipher_hex)
-    print("Final Cipher text (Base64):", final_cipher_base64)
+        # Convert binary to Base64
+        final_cipher_base64 = base64.b64encode(int(final_cipher_str, 2).to_bytes(8, 'big')).decode('utf-8')
+        encrypted_blocks_base64.append(final_cipher_base64)
 
-    return final_cipher_ascii, final_cipher_hex, final_cipher_base64
+    # Return all formats
+    return ''.join(encrypted_blocks_ascii), ''.join(encrypted_blocks_hex), ''.join(encrypted_blocks_base64)
 
 # decryption of cipher to origional
 
 def decryption(final_cipher, user_key):
-    # Initialize lists to store round keys
-    round_keys = generate_round_keys(user_key)
-    
-    # Apply Initial Permutation
-    ip_dec_result_str = ip_on_binary_rep(final_cipher)
-    
-    lpt = ip_dec_result_str[:32]
-    rpt = ip_dec_result_str[32:]
+    decrypted_text = ''
 
-    for round_num in range(16):
-        # Perform expansion (32 bits to 48 bits)
-        expanded_result = [rpt[i - 1] for i in e_box_table]
-    
-        # Convert the result back to a string for better visualization
-        expanded_result_str = ''.join(expanded_result)
-    
-        # Round key for the current round
-        round_key_str = round_keys[15 - round_num]
-    
-        # XOR between key and expanded result 
-        xor_result_str = ''.join(str(int(expanded_result_str[i]) ^ int(round_key_str[i])) for i in range(48))
-    
-        # Split the 48-bit string into 8 groups of 6 bits each
-        six_bit_groups = [xor_result_str[i:i+6] for i in range(0, 48, 6)]
-    
-        # Initialize the substituted bits string
-        s_box_substituted = ''
-    
-        # Apply S-box substitution for each 6-bit group
-        for i in range(8):
-            # Extract the row and column bits
-            row_bits = int(six_bit_groups[i][0] + six_bit_groups[i][-1], 2)
-            col_bits = int(six_bit_groups[i][1:-1], 2)
-    
-            # Lookup the S-box value
-            s_box_value = s_boxes[i][row_bits][col_bits]
-            s_box_substituted += format(s_box_value, '04b')
-    
-        # Apply a P permutation to the result
-        p_box_result = [s_box_substituted[i - 1] for i in p_box_table]
-    
-        # Convert LPT to a list of bits for the XOR operation
-        lpt_list = list(lpt)
-    
-        # Perform XOR operation
-        new_rpt = [str(int(lpt_list[i]) ^ int(p_box_result[i])) for i in range(32)]
-    
-        # Convert the result back to a string for better visualization
-        new_rpt_str = ''.join(new_rpt)
-    
-        # Update LPT and RPT for the next round
-        lpt = rpt
-        rpt = new_rpt_str
-    
-    final_result = rpt + lpt
-    # Perform the final permutation (IP-1)
-    final_cipher = [final_result[ip_inverse_table[i] - 1] for i in range(64)]
+    # Process each 8-character encrypted block
+    for i in range(0, len(final_cipher), 8):
+        block = final_cipher[i:i+8]
+        binary_rep_of_cipher = str_to_bin(block)
+        round_keys = generate_round_keys(user_key)
 
-    # Convert the result back to a string for better visualization
-    final_cipher_str = ''.join(final_cipher)
+        ip_result_str = ip_on_binary_rep(binary_rep_of_cipher)
+        lpt = ip_result_str[:32]
+        rpt = ip_result_str[32:]
 
-    print('\n')
+        for round_num in range(16):
+            expanded_result = [rpt[i - 1] for i in e_box_table]
+            expanded_result_str = ''.join(expanded_result)
+            round_key_str = round_keys[15 - round_num]
+            xor_result_str = ''.join(str(int(expanded_result_str[i]) ^ int(round_key_str[i])) for i in range(48))
+            six_bit_groups = [xor_result_str[i:i+6] for i in range(0, 48, 6)]
 
-    # Convert binary cipher string to ascii
-    final_cipher_ascii = binary_to_ascii(final_cipher_str)
-    print("Decryption of Cipher :", final_cipher_ascii)
+            s_box_substituted = ''
+            for i in range(8):
+                row_bits = int(six_bit_groups[i][0] + six_bit_groups[i][-1], 2)
+                col_bits = int(six_bit_groups[i][1:-1], 2)
+                s_box_value = s_boxes[i][row_bits][col_bits]
+                s_box_substituted += format(s_box_value, '04b')
 
-    return final_cipher_ascii
+            p_box_result = ''.join(s_box_substituted[i - 1] for i in p_box_table)
+            lpt_list = list(lpt)
+            new_rpt = ''.join(str(int(lpt_list[i]) ^ int(p_box_result[i])) for i in range(32))
+            lpt = rpt
+            rpt = new_rpt
+
+        final_result = rpt + lpt
+        final_plaintext = [final_result[ip_inverse_table[i] - 1] for i in range(64)]
+        final_plaintext_str = ''.join(final_plaintext)
+        decrypted_block = binary_to_ascii(final_plaintext_str)
+
+        decrypted_text += decrypted_block
+
+    # Remove padding spaces from the end
+    return decrypted_text.rstrip()
 
 # Start
 
-# user input for the string to encrypt
-user_input = input("Enter an 8-string to encrypt: ")
+if __name__ == "__main__":
+    # User input for the string to encrypt
+    user_input = input("Enter a string to encrypt (any length): ")
 
-# user input for the key
-user_key = input("Enter an 8-character key: ")
+    # User input for the key
+    user_key = input("Enter an 8-character key: ")
 
-# Ensure the user key is exactly 8 characters long
-if len(user_key) != 8:
-    print("Key must be exactly 8 characters long.")
-else:
-    # Encryption
-    enc = encryption(user_input, user_key)
+    # Ensure the user key is exactly 8 characters long
+    if len(user_key) != 8:
+        print("Key must be exactly 8 characters long.")
+    else:
+        # Encrypt the message
+        encrypted_ascii, encrypted_hex, encrypted_base64 = encryption(user_input, user_key)
+        print("\nEncrypted (ASCII):", encrypted_ascii)
+        print("Encrypted (HEX):", encrypted_hex)
+        print("Encrypted (Base64):", encrypted_base64)
 
-    # Decryption
-    enc_to_binary = str_to_bin(enc[0])
-    dec = decryption(enc_to_binary, user_key)
+        # Decrypt the message
+        decrypted_text = decryption(encrypted_ascii, user_key)
+        print("\nDecrypted:", decrypted_text)
