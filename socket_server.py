@@ -1,5 +1,5 @@
 import socket
-from des1 import encryption, decryption  # import fungsi dari des1.py
+from des1 import encryption, decryption 
 
 def server_program():
     host = socket.gethostname()
@@ -11,17 +11,17 @@ def server_program():
     conn, address = server_socket.accept()  
     print("Connection from: " + str(address))
 
-    key = 'abcdefgh'  # Kunci DES harus 8 karakter
+    key = 'kolisane'
     while True:
         encrypted_data = conn.recv(1024).decode()  
         if not encrypted_data:
             break
 
-        data = decryption(encrypted_data, key)  # Dekripsi pesan
+        data = decryption(encrypted_data, key)
         print("from connected user: " + str(data))
 
         response = input(' -> ')
-        encrypted_response, _, _ = encryption(response, key)  # Enkripsi balasan
+        encrypted_response, _, _ = encryption(response, key)
         conn.send(encrypted_response.encode())  
 
     conn.close()  
