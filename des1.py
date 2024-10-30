@@ -133,10 +133,10 @@ def str_to_bin(user_input):
             # Get ASCII value of the character and convert it to binary
             binary_char = format(ord(char), '08b')
             binary_representation += binary_char
-            binary_representation = binary_representation[:64]
+            # binary_representation = binary_representation[:64]
         
         # Pad or truncate the binary representation to 64 bits
-        binary_representation = binary_representation[:64].ljust(64, '0')
+        # binary_representation = binary_representation[:64].ljust(64, '0')
         
         # Print the binary representation
         # print("Binary representation of input string: ", binary_representation)
@@ -195,21 +195,23 @@ def generate_round_keys(user_key):
 
 def encryption(user_input, user_key):
     # Ensure the plaintext is a multiple of 8 characters by padding with spaces if needed
-    if len(user_input) % 8 != 0:
-        padding_len = 8 - (len(user_input) % 8)
-        user_input += ' ' * padding_len
+    user_ins = str_to_bin(user_input)
+    if len(user_ins) % 64 != 0:
+        padding_len = 64 - (len(user_ins) % 64)
+        user_ins += '0' * padding_len
 
     # Encrypt each 8-character block and store different encodings
     encrypted_blocks_ascii = []
     encrypted_blocks_hex = []
     encrypted_blocks_base64 = []
 
-    for i in range(0, len(user_input), 8):
-        block = user_input[i:i+8]
-        binary_rep_of_input = str_to_bin(block)
-        round_keys = generate_round_keys(user_key)
+    round_keys = generate_round_keys(user_key)
 
-        ip_result_str = ip_on_binary_rep(binary_rep_of_input)
+    for i in range(0, len(user_ins), 64):
+        block = user_ins[i:i+64]
+       # binary_rep_of_input = str_to_bin(block)
+        
+        ip_result_str = ip_on_binary_rep(block)
         lpt = ip_result_str[:32]
         rpt = ip_result_str[32:]
 
