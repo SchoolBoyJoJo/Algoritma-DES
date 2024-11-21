@@ -1,59 +1,40 @@
 import socket
-import threading
-from des1 import encryption, decryption  # Import fungsi DES
+import rsa
+from des1 import encryption, decryption
 
-# Variabel global untuk status koneksi
-connected = True
-
-# Fungsi untuk menerima pesan dari server
-def receive_messages(client_socket, key):
-    global connected
-    while connected:
-        try:
-            # Terima pesan terenkripsi dari server
-            encrypted_data = client_socket.recv(1024).decode()
-            if not encrypted_data:
-                break
-
-            try:
-                data = decryption(encrypted_data, key)  # Coba dekripsi pesan
-                print(data)  # Tampilkan pesan jika berhasil didekripsi
-            except:
-                print("Received encrypted message (key mismatch)")  # Jika kunci berbeda
-        except:
-            if connected:  # Hanya tampilkan error jika masih terhubung
-                print("An error occurred. Connection closed.")
-            break
-    client_socket.close()
+def request_public_key(client_socket):
+    client_socket.send(b"REQUEST_PUBLIC_KEY")
+    public_key_data = client_socket.recv(1024).decode()
+    print(f"Public key received from server: {public_key_data}")
+    return rsa.PublicKey.load_pkcs1(public_key_data.encode())
 
 def client_program():
-    global connected
     host = socket.gethostname()
     port = 5000
 
     client_socket = socket.socket()
     client_socket.connect((host, port))
 
-    # Input nama dan kunci pengguna
-    username = input("Enter your username: ")
-    key = input("Enter your encryption key (8 characters): ")
+    print("1. Create Room")
+    print("2. Join Room")
+    choice = input("Enter your choice: ")
 
-    # Buat thread untuk menerima pesan dari server
-    thread = threading.Thread(target=receive_messages, args=(client_socket, key))
-    thread.start()
+    if choice == "1":
+        public_key = request_public_key(client_socket)
 
-    # Kirim pesan ke server
+        # Generate DES key and send it to server
+        des_key = "abcdefgh"
+        encrypted_key = rsa.encrypt(des_key.encode(), public_key)
+        client_socket.send(b"DES_KEY:" + encrypted_key)
+        print("DES key sent to server.")
+
     while True:
         message = input(" -> ")
-        if message.lower().strip() == 'exit':
-            connected = False  # Set status koneksi menjadi False
-            print("Exiting chat room...")
-            client_socket.close()  # Tutup koneksi ke server
+        if message.lower() == "exit":
+            client_socket.close()
             break
 
-        # Gabungkan nama pengguna dengan pesan
-        full_message = f"[{username}]: {message}"
-        encrypted_message, _, _ = encryption(full_message, key)
+        encrypted_message, _, _ = encryption(message, des_key)
         client_socket.send(encrypted_message.encode())
 
 if __name__ == '__main__':
