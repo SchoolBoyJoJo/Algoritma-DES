@@ -3,7 +3,7 @@ import threading
 from rsa_code import generate_key_pair, decrypt_rsa
 from des1 import decryption
 
-clients = {}  # Menyimpan informasi client (socket -> username)
+clients = {}  # Menyimpan informasi client (socket -> {"username": ..., "address": ...})
 private_key = None
 public_key = None
 
@@ -23,12 +23,20 @@ def send_key_to_pka():
         print(f"Error connecting to PKA: {e}")
 
 
-def handle_client(client_socket):
+def handle_client(client_socket, address):
     try:
+        # Minta username dari client
+        client_socket.send(b"USERNAME_REQUEST")
+        username = client_socket.recv(1024).decode()
+        print(f"New client connected: {username} ({address})")
+
+        # Simpan informasi client
+        clients[client_socket] = {"username": username, "address": address}
+
         # Terima DES key dari client
         encrypted_key = int(client_socket.recv(1024).decode())
         des_key = decrypt_rsa(encrypted_key, private_key)
-        print(f"Decrypted DES key: {des_key}")
+        print(f"Decrypted DES key for {username}: {des_key}")
 
         while True:
             # Terima dan decrypt pesan
@@ -36,15 +44,19 @@ def handle_client(client_socket):
             if not encrypted_message:
                 break
             decrypted_message = decryption(encrypted_message, des_key)
-            print(f"Decrypted message: {decrypted_message}")
+            print(f"Message from {username}: {decrypted_message}")
 
             # Kirim pesan ke semua client
-            for client in clients:
+            for client, info in clients.items():
                 if client != client_socket:
-                    client.send(encrypted_message.encode())
+                    client.send(f"{username}: {decrypted_message}".encode())
     except Exception as e:
-        print(f"Error handling client: {e}")
+        print(f"Error handling client {address}: {e}")
     finally:
+        # Hapus client saat terputus
+        if client_socket in clients:
+            print(f"Client {clients[client_socket]['username']} ({address}) disconnected.")
+            del clients[client_socket]
         client_socket.close()
 
 
@@ -62,9 +74,8 @@ def server_program():
     print(f"Server is running on {host}:{port}...")
 
     while True:
-        client_socket, _ = server_socket.accept()
-        print("New client connected.")
-        threading.Thread(target=handle_client, args=(client_socket,)).start()
+        client_socket, address = server_socket.accept()
+        threading.Thread(target=handle_client, args=(client_socket, address)).start()
 
 
 if __name__ == '__main__':

@@ -56,6 +56,11 @@ def client_program():
     client_socket = socket.socket()
     client_socket.connect((host, port))
 
+    # Kirim username ke server
+    username_request = client_socket.recv(1024).decode()
+    if username_request == "USERNAME_REQUEST":
+        client_socket.send(username.encode())
+
     # Kirim DES key terenkripsi ke server
     des_key = "abcdefgh"
     encrypted_key = encrypt_rsa(des_key, server_key)
