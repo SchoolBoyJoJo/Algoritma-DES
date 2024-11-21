@@ -5,6 +5,7 @@ import threading
 
 # Database sederhana untuk menyimpan ID dan key
 clients_db = {}
+waiting_for_invitation ={}
 
 def generate_key():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=8))
@@ -35,8 +36,18 @@ def handle_client(connection, address):
             if client_id in clients_db:
                 public_key = clients_db[client_id]
                 connection.sendall(f"This Client's public key is: {public_key}\n".encode())
+                connection.sendall(f"Invitation sent to {address}\n".encode())
+                invitation_message = f"You have received an invitation from someone. Do you want to join the chat? (yes/no)"
+                target_socket = waiting_for_invitation[client_id]
+                target_socket.sendall(invitation_message.encode())
             else:
                 connection.sendall(b"This ID does not belong to any client.\n")
+        elif pka_menu == '3':
+            connection.sendall(b"Please enter your 6-digit ID:\n")
+            client_id = connection.recv(1024).decode().strip()
+            waiting_for_invitation[client_id] = connection
+            while True:
+                pass
     except Exception as e:
         print(f"Error with client {address}: {e}")
     finally:

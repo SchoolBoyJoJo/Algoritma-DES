@@ -10,6 +10,24 @@ def get_key_from_pka(pka_host, pka_port, client_id, pka_menu):
     pka_socket.connect((pka_host, pka_port))
     pka_socket.recv(1024)  # Terima pesan minta menu
     pka_socket.sendall(pka_menu.encode())
+    if pka_menu == 3:
+        pka_socket.recv(1024)  # Terima pesan minta id
+        pka_socket.sendall(client_id.encode())
+        while True:
+            invitation_message = pka_socket.recv(1024).decode()
+            if invitation_message:
+                print(f"Received message: {invitation_message}")
+                if "Do you want to join the chat?" in invitation_message:
+                        response = input("Do you want to join the chatroom? (yes/no): ")
+                        pka_socket.sendall(response.encode())
+                        if response.lower() == 'yes':
+                            print("Joining the chatroom...")
+                            target_key = pka_socket.recv(1024).decode()
+                            return target_key
+                        else:
+                            print("You declined the invitation.")
+        pka_socket.close()
+        return None
     pka_socket.recv(1024)  # Terima pesan minta id
     pka_socket.sendall(client_id.encode())
     key_message = pka_socket.recv(1024).decode()
@@ -32,8 +50,8 @@ def receive_messages(client_socket, key, target_key):
                 break
 
             try:
-                data_decrypt_target = decryption(encrypted_data, target_key)  # Coba dekripsi pesan
-                data_decrypt_own = decryption(data_decrypt_target, key)
+                data_decrypt_target = decryption(encrypted_data, key)  # Coba dekripsi pesan
+                data_decrypt_own = decryption(data_decrypt_target, target_key)
                 print(data_decrypt_own)  # Tampilkan pesan jika berhasil didekripsi
             except:
                 print("Received encrypted message (key mismatch)")  # Jika kunci berbeda
@@ -54,20 +72,31 @@ def client_program():
     client_id = input("Enter your 6-digit ID: ")
     key = get_key_from_pka(pka_host, pka_port, client_id, '1')
     
-    client_socket = socket.socket()
-    client_socket.connect((host, port))
-    
     # Pilih Client yang ingin dihubungi
     while True:
+        print("1. Connect with someone")
+        print("2. Wait for people to connect ")
+        print("3. Join the group chat ")
         cli_menu = input("What do You want to do: ")
-        connect_to = input("Enter the 6-Digit ID of user you want to chat with: ")
-        target_key = get_key_from_pka(pka_host, pka_port, connect_to, '2')
-        if target_key:  # Check if the key is valid and not None
-            print(f"Successfully fetched the key for ID {connect_to}")
-            break  # Exit the loop if key is fetched
-        else:
-            print("ID is not matching any client or invalid response. Please try again.")
-
+        if cli_menu == 1:
+            connect_to = input("Enter the 6-Digit ID of user you want to chat with: ")
+            target_key = get_key_from_pka(pka_host, pka_port, connect_to, '2')
+            if target_key:  # Check if the key is valid and not None
+                print(f"Successfully fetched the key for ID {connect_to}")
+                break  # Exit the loop if key is fetched
+            else:
+                print("ID is not matching any client or invalid response. Please try again.")
+        elif cli_menu == 2:
+            target_key = get_key_from_pka(pka_host, pka_port, client_id, '3')
+            if target_key:
+                break
+            else:
+                print("You quit before someone wants to connect to you.")
+        elif cli_menu == 3:
+            break
+    
+    client_socket = socket.socket()
+    client_socket.connect((host, port))
 
     # Buat thread untuk menerima pesan dari server
     thread = threading.Thread(target=receive_messages, args=(client_socket, key, target_key))
