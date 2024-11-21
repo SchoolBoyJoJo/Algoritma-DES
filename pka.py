@@ -1,33 +1,48 @@
 import socket
-import rsa
+import threading
 
-def generate_key_pair():
-    # Membuat pasangan kunci (public dan private)
-    public_key, private_key = rsa.newkeys(512)
-    return public_key, private_key
+# Dictionary untuk menyimpan public key (format: username -> (e, n))
+public_keys = {}
 
-def pka_server():
-    host = '127.0.0.1'  # IP PKA
-    port = 6000         # Port untuk komunikasi PKA
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
-    server_socket.listen(5)  # Maksimum 5 koneksi yang menunggu
-    print("PKA server is running and listening for requests...")
-
-    while True:
-        client_socket, address = server_socket.accept()
-        print(f"Connection from: {address}")
-
-        # Generate pasangan kunci RSA baru
-        public_key, private_key = generate_key_pair()
-        print(f"Generated new public key for {address}")
-
-        # Kirim public key ke server yang meminta
-        client_socket.send(public_key.save_pkcs1().decode().encode())
-
-        # Tutup koneksi setelah public key dikirim
+def handle_request(client_socket):
+    try:
+        # Terima data dari client
+        data = client_socket.recv(1024).decode()
+        if data.startswith("STORE_KEY:"):
+            # Simpan public key
+            username, key = data[len("STORE_KEY:"):].split(":")
+            e, n = map(int, key.split(","))
+            public_keys[username] = (e, n)
+            print(f"Stored public key for {username}: {public_keys[username]}")
+            client_socket.send(b"Key stored successfully.")
+        elif data.startswith("REQUEST_KEY:"):
+            # Kirim public key
+            username = data[len("REQUEST_KEY:"):]
+            if username in public_keys:
+                key = public_keys[username]
+                client_socket.send(f"{key[0]},{key[1]}".encode())
+            else:
+                client_socket.send(b"Key not found.")
+    except Exception as e:
+        print(f"Error handling request: {e}")
+    finally:
         client_socket.close()
 
+
+def pka_program():
+    host = "127.0.0.1"
+    port = 6000
+
+    server_socket = socket.socket()
+    server_socket.bind((host, port))
+    server_socket.listen()
+    print(f"PKA is running on {host}:{port}...")
+
+    while True:
+        client_socket, _ = server_socket.accept()
+        threading.Thread(target=handle_request, args=(client_socket,)).start()
+
+
 if __name__ == '__main__':
-    pka_server()
+    pka_program()

@@ -1,33 +1,67 @@
 import socket
-import rsa
-from des1 import encryption, decryption
+from rsa_code import generate_key_pair, encrypt_rsa
+from des1 import encryption
 
-def request_public_key(client_socket):
-    client_socket.send(b"REQUEST_PUBLIC_KEY")
-    public_key_data = client_socket.recv(1024).decode()
-    print(f"Public key received from server: {public_key_data}")
-    return rsa.PublicKey.load_pkcs1(public_key_data.encode())
+public_key = None
+private_key = None
+
+
+def send_key_to_pka(username):
+    host = "127.0.0.1"
+    port = 6000
+
+    try:
+        pka_socket = socket.socket()
+        pka_socket.connect((host, port))
+        pka_socket.send(f"STORE_KEY:{username}:{public_key[0]},{public_key[1]}".encode())
+        response = pka_socket.recv(1024).decode()
+        print(response)
+        pka_socket.close()
+    except Exception as e:
+        print(f"Error connecting to PKA: {e}")
+
+
+def request_server_key():
+    host = "127.0.0.1"
+    port = 6000
+
+    try:
+        pka_socket = socket.socket()
+        pka_socket.connect((host, port))
+        pka_socket.send(b"REQUEST_KEY:server")
+        response = pka_socket.recv(1024).decode()
+        pka_socket.close()
+        e, n = map(int, response.split(","))
+        return (e, n)
+    except Exception as e:
+        print(f"Error connecting to PKA: {e}")
+        return None
+
 
 def client_program():
+    global public_key, private_key
+    public_key, private_key = generate_key_pair()
+
+    username = input("Enter your username: ")
+    send_key_to_pka(username)  # Kirim public key ke PKA
+
+    server_key = request_server_key()
+    if not server_key:
+        print("Failed to get server key. Exiting.")
+        return
+
     host = socket.gethostname()
     port = 5000
 
     client_socket = socket.socket()
     client_socket.connect((host, port))
 
-    print("1. Create Room")
-    print("2. Join Room")
-    choice = input("Enter your choice: ")
+    # Kirim DES key terenkripsi ke server
+    des_key = "abcdefgh"
+    encrypted_key = encrypt_rsa(des_key, server_key)
+    client_socket.send(str(encrypted_key).encode())
 
-    if choice == "1":
-        public_key = request_public_key(client_socket)
-
-        # Generate DES key and send it to server
-        des_key = "abcdefgh"
-        encrypted_key = rsa.encrypt(des_key.encode(), public_key)
-        client_socket.send(b"DES_KEY:" + encrypted_key)
-        print("DES key sent to server.")
-
+    # Kirim pesan
     while True:
         message = input(" -> ")
         if message.lower() == "exit":
@@ -36,6 +70,7 @@ def client_program():
 
         encrypted_message, _, _ = encryption(message, des_key)
         client_socket.send(encrypted_message.encode())
+
 
 if __name__ == '__main__':
     client_program()
