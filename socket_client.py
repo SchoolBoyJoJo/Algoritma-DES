@@ -22,7 +22,7 @@ def get_key_from_pka(pka_host, pka_port, client_id, pka_menu):
         return None  # Return None if no valid key was found
 
 # Fungsi untuk menerima pesan dari server
-def receive_messages(client_socket, key):
+def receive_messages(client_socket, key, target_key):
     global connected
     while connected:
         try:
@@ -32,7 +32,7 @@ def receive_messages(client_socket, key):
                 break
 
             try:
-                data_decrypt_target = decryption(encrypted_data, key)  # Coba dekripsi pesan
+                data_decrypt_target = decryption(encrypted_data, target_key)  # Coba dekripsi pesan
                 data_decrypt_own = decryption(data_decrypt_target, key)
                 print(data_decrypt_own)  # Tampilkan pesan jika berhasil didekripsi
             except:
@@ -58,8 +58,8 @@ def client_program():
     client_socket.connect((host, port))
     
     # Pilih Client yang ingin dihubungi
-    # Pilih Client yang ingin dihubungi
     while True:
+        cli_menu = input("What do You want to do: ")
         connect_to = input("Enter the 6-Digit ID of user you want to chat with: ")
         target_key = get_key_from_pka(pka_host, pka_port, connect_to, '2')
         if target_key:  # Check if the key is valid and not None
@@ -70,7 +70,7 @@ def client_program():
 
 
     # Buat thread untuk menerima pesan dari server
-    thread = threading.Thread(target=receive_messages, args=(client_socket, key))
+    thread = threading.Thread(target=receive_messages, args=(client_socket, key, target_key))
     thread.start()
 
     # Kirim pesan ke server
