@@ -13,43 +13,35 @@ def handle_client(connection, address):
     try:
         connection.sendall(b"Welcome to PKA. Please enter the menu you want:\n")
         pka_menu = connection.recv(1024).decode().strip()
-        
-        if pka_menu == 1: #key sendiri
-            connection.sendall(b"Welcome to PKA. Please enter a 6-digit ID:\n")
+
+        if pka_menu == '1':  # Key for the client itself
+            connection.sendall(b"Please enter your 6-digit ID:\n")
             client_id = connection.recv(1024).decode().strip()
-        
-            # Validasi ID
-            if len(client_id) != 6 or not client_id.isdigit():
-                connection.sendall(b"Invalid ID. Please use a 6-digit numeric ID.\n")
-                connection.close()
-                return
 
-            # Generate atau ambil existing key untuk client
+            # Check if the client_id exists
             if client_id in clients_db:
                 public_key = clients_db[client_id]
-                connection.sendall(b"Your existing public key is: " + public_key.encode() + b"\n")
+                connection.sendall(f"Your public key is: {public_key}\n".encode())
             else:
-                public_key = generate_key()
-                clients_db[client_id] = public_key
-                connection.sendall(b"Your new public key is: " + public_key.encode() + b"\n")
-                
-        elif pka_menu ==2: # cari key target
-            # Validasi ID
-            if len(client_id) != 6 or not client_id.isdigit():
-                connection.sendall(b"Invalid ID. Please use a 6-digit numeric ID.\n")
-                connection.close()
-                return
+                new_key = generate_key()
+                clients_db[client_id] = new_key
+                connection.sendall(f"New public key generated: {new_key}\n".encode())
+
+        elif pka_menu == '2':  # Request key for another client
+            connection.sendall(b"Please enter the 6-digit ID to get the key:\n")
+            client_id = connection.recv(1024).decode().strip()
+
+            # Return the key if exists
             if client_id in clients_db:
                 public_key = clients_db[client_id]
-                connection.sendall(b"This Client Key is: " + public_key.encode() + b"\n")
+                connection.sendall(f"This Client's public key is: {public_key}\n".encode())
             else:
-                connection.sendall(b"This ID doesnt belong to any client.\n")
-                connection.close()         
-
+                connection.sendall(b"This ID does not belong to any client.\n")
     except Exception as e:
         print(f"Error with client {address}: {e}")
     finally:
         connection.close()
+
 
 def start_pka():
     host=socket.gethostname()

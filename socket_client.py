@@ -14,8 +14,12 @@ def get_key_from_pka(pka_host, pka_port, client_id, pka_menu):
     pka_socket.sendall(client_id.encode())
     key_message = pka_socket.recv(1024).decode()
     pka_socket.close()
-    print(key_message)
-    return key_message.split(": ")[-1].strip()  # Ambil key dari pesan
+    if "public key" in key_message:  # Ensure it's a valid key response
+        print(f"Received key message: {key_message}")
+        return key_message.split(": ")[-1].strip()  # Extract the key
+    else:
+        print("Error: Invalid response or client ID not found.")
+        return None  # Return None if no valid key was found
 
 # Fungsi untuk menerima pesan dari server
 def receive_messages(client_socket, key):
@@ -28,8 +32,9 @@ def receive_messages(client_socket, key):
                 break
 
             try:
-                data = decryption(encrypted_data, key)  # Coba dekripsi pesan
-                print(data)  # Tampilkan pesan jika berhasil didekripsi
+                data_decrypt_target = decryption(encrypted_data, key)  # Coba dekripsi pesan
+                data_decrypt_own = decryption(data_decrypt_target, key)
+                print(data_decrypt_own)  # Tampilkan pesan jika berhasil didekripsi
             except:
                 print("Received encrypted message (key mismatch)")  # Jika kunci berbeda
         except:
@@ -53,12 +58,16 @@ def client_program():
     client_socket.connect((host, port))
     
     # Pilih Client yang ingin dihubungi
+    # Pilih Client yang ingin dihubungi
     while True:
         connect_to = input("Enter the 6-Digit ID of user you want to chat with: ")
         target_key = get_key_from_pka(pka_host, pka_port, connect_to, '2')
-        if target_key == True:
-            break
-        else: print("ID is not matching any client")
+        if target_key:  # Check if the key is valid and not None
+            print(f"Successfully fetched the key for ID {connect_to}")
+            break  # Exit the loop if key is fetched
+        else:
+            print("ID is not matching any client or invalid response. Please try again.")
+
 
     # Buat thread untuk menerima pesan dari server
     thread = threading.Thread(target=receive_messages, args=(client_socket, key))
