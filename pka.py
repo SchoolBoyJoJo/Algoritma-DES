@@ -14,7 +14,8 @@ def handle_request(client_socket):
             username, key = data[len("STORE_KEY:"):].split(":")
             e, n = map(int, key.split(","))
             public_keys[username] = (e, n)
-            print(f"Stored public key for {username}: {public_keys[username]}")
+            short_key = f"({e}, {str(n)[:6]}...)"
+            print(f"Stored public key for {username}: {short_key}")
             client_socket.send(b"Key stored successfully.")
         elif data.startswith("REQUEST_KEY:"):
             # Kirim public key
