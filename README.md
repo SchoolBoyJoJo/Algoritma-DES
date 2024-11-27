@@ -4,10 +4,10 @@ Anggota:
 
 Jonathan Purba
 NRP: 5025221132
-Tugas: Membuat algoritma DES (encrypt & decrypt), Mengintregasikan DES dengan python socket
+Tugas: Main Branch
 
 Jhonatan Simorangkir
 NRP: 5025221316
-Tugas: Membuat server python socket menjadi multi client, menyempurnakan python socket
+Tugas: Budiman_mancung Branch
 
 Keamanan Informasi B
