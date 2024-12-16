@@ -1,7 +1,8 @@
 import socket
 import threading
+from rsa_code import generate_key_pair, decrypt_rsa, encrypt_rsa
+from des1 import decryption
 import random
-from rsa_code import generate_key_pair, encrypt_rsa, decrypt_rsa
 
 clients = {}  # Menyimpan informasi client: {socket: {"id": ..., "public_key": ...}}
 public_key = None
@@ -100,39 +101,69 @@ def server_handshake(client_socket):
         return False, None, None
 
 
-def handle_client(client_socket, address):
-    success, client_key, client_id = server_handshake(client_socket)
-    if not success:
-        client_socket.close()
-        return
-
-    # Simpan informasi client
-    clients[client_socket] = {"id": client_id, "public_key": client_key}
-
-    print(f"Client {client_id} authenticated successfully.")
+def request_client_public_key(username):
+    host = "127.0.0.1"
+    port = 6000
     try:
+        pka_socket = socket.socket()
+        pka_socket.connect((host, port))
+        pka_socket.send(f"REQUEST_KEY:{username}".encode())
+        response = pka_socket.recv(1024).decode()
+        pka_socket.close()
+        e, n = map(int, response.split(","))
+        return (e, n)
+    except Exception as e:
+        print(f"Error connecting to PKA: {e}")
+        return None
+
+
+def handle_client(client_socket, address, private_key):
+    try:
+        # Send username request to client
+        client_socket.send(b"USERNAME_REQUEST")
+        username = client_socket.recv(1024).decode()
+        
+        clients[client_socket] = {"username": username, "address": address}
+        print(f"New client connected: {username} ({address})")
+
+        # Receive the client's public key and n1
+        data = client_socket.recv(1024).decode()
+        e_client, n_client, n1 = map(int, data.split(","))
+        
+        # Generate n2
+        n2 = random.randint(1000, 9999)
+        
+        # Send response with proper format
+        response = f"{public_key[0]},{public_key[1]},{n1},{n2}"
+        client_socket.send(response.encode())
+
+        # Receive the encrypted DES key from the client
+        encrypted_des_key = client_socket.recv(1024).decode()
+
+        # Decrypt the DES key using the RSA private key of the server
+        des_key = decrypt_rsa(int(encrypted_des_key), private_key)
+        print(f"Decrypted DES key for {username}: {des_key}")
+
+        # Decrypt and handle incoming messages from the client
         while True:
-            # Terima pesan terenkripsi dari client
             encrypted_message = client_socket.recv(1024).decode()
             if not encrypted_message:
                 break
+            decrypted_message = decryption(encrypted_message, des_key)
+            print(f"Message from {username}: {decrypted_message}")
 
-            # Dekripsi pesan (gunakan konsep double enkripsi jika perlu)
-            decrypted_message = decrypt_rsa(int(encrypted_message), private_key)
-            print(f"Message from client {client_id}: {decrypted_message}")
-
-            # Broadcast pesan ke semua client lain
-            for other_client, info in clients.items():
-                if other_client != client_socket:
-                    encrypted_broadcast = encrypt_rsa(decrypted_message, info["public_key"])
-                    other_client.send(str(encrypted_broadcast).encode())
+            # Kirim pesan ke semua client
+            for client, info in clients.items():
+                if client != client_socket:
+                    client.send(f"{username}: {decrypted_message}".encode())
     except Exception as e:
         print(f"Error handling client {client_id}: {e}")
     finally:
-        print(f"Client {client_id} disconnected.")
-        del clients[client_socket]
+        # Hapus client saat terputus
+        if client_socket in clients:
+            print(f"Client {clients[client_socket]['username']} ({address}) disconnected.")
+            del clients[client_socket]
         client_socket.close()
-
 
 def server_program():
     global public_key, private_key, pka_public_key
@@ -160,7 +191,7 @@ def server_program():
 
     while True:
         client_socket, address = server_socket.accept()
-        threading.Thread(target=handle_client, args=(client_socket, address)).start()
+        threading.Thread(target=handle_client, args=(client_socket, address, private_key)).start()
 
 
 if __name__ == '__main__':
