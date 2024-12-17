@@ -2,10 +2,8 @@ import socket
 import threading
 from rsa_code import generate_key_pair, encrypt_rsa, decrypt_rsa
 
-# Dictionary to store public keys (format: id -> (e, n))
 public_keys = {}
 
-# PKA's RSA keys
 pka_public_key, pka_private_key = generate_key_pair()
 
 def handle_request(client_socket):
@@ -13,7 +11,6 @@ def handle_request(client_socket):
         data = client_socket.recv(1024).decode()
         
         if data == "REQUEST_PKA_PUBLIC_KEY":
-            # Send PKA's public key directly 
             key_str = f"{pka_public_key[0]},{pka_public_key[1]}"
             print(f"Sending PKA public key: {key_str}")
             client_socket.send(key_str.encode())

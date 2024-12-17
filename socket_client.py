@@ -6,6 +6,10 @@ import random
 public_key = None
 private_key = None
 
+def double_encrypt(message, client_private_key, server_public_key):
+    encrypted_with_client = encrypt_rsa(message, client_private_key) 
+    double_encrypted = encrypt_rsa(encrypted_with_client, server_public_key)
+    return double_encrypted
 
 def request_pka_public_key():
     host = "127.0.0.1"
@@ -81,9 +85,8 @@ def request_server_key():
         return None
 
 def client_handshake(client_socket, client_key):
-    n1 = random.randint(1000, 9999)  # Generate a random number n1
+    n1 = random.randint(1000, 9999) 
     
-    # Send our (client's) public key and n1 to server
     message = f"{client_key[0]},{client_key[1]},{n1}"
     client_socket.send(message.encode())
     
@@ -107,7 +110,6 @@ def client_program():
     global public_key, private_key
     public_key, private_key = generate_key_pair()
 
-    # Connect to chat server
     host = socket.gethostname()
     port = 5000
     
@@ -118,7 +120,6 @@ def client_program():
         print(f"Error connecting to server: {e}")
         return
 
-    # Handle username and key registration
     try:
         username_request = client_socket.recv(1024).decode()
         if username_request == "USERNAME_REQUEST":
@@ -151,22 +152,21 @@ def client_program():
         client_socket.close()
         return
 
-    # Step 5: Send encrypted DES key to the server after successful handshake
-    des_key = "abcdefgh"  # For this example, you may generate or input a dynamic DES key
-    encrypted_des_key = encrypt_rsa(des_key, server_key)  # Encrypt DES key with server's public key
-    client_socket.send(str(encrypted_des_key).encode())  # Send encrypted DES key to the server
+    # send encrypted DES key to the server after successful handshake
+    des_key = "abcdefgh"  
+    encrypted_des_key = encrypt_rsa(des_key, server_key) 
+    client_socket.send(str(encrypted_des_key).encode())
 
-    # Step 6: Start chatting after successful handshake
+    # chatting
     while True:
         message = input(" -> ")
         if message.lower() == "exit":
             break
 
-        # Step 7: Encrypt message using the DES key
-        encrypted_message, _, _ = encryption(message, des_key)  # Use your existing encryption function
-        client_socket.send(encrypted_message.encode())  # Send encrypted message
+        # Enkripsi dua tahap
+        double_encrypted_message = double_encrypt(message, private_key, server_key)
+        client_socket.send(double_encrypted_message.encode())
 
-    # Step 8: Close the connection when done
     print("Closing connection.")
     client_socket.close()
 

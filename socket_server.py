@@ -8,6 +8,11 @@ clients = {}  # Menyimpan informasi client (socket -> {"username": ..., "address
 private_key = None
 public_key = None
 
+def double_decrypt(message, server_private_key, client_public_key):
+    decrypted_with_server = decrypt_rsa(message, server_private_key)
+    final_message = decrypt_rsa(decrypted_with_server, client_public_key)
+    return final_message
+
 def request_pka_public_key():
     host = "127.0.0.1"
     port = 6000
@@ -72,7 +77,6 @@ def request_client_public_key(username):
 
 def handle_client(client_socket, address, private_key):
     try:
-        # Send username request to client
         client_socket.send(b"USERNAME_REQUEST")
         username = client_socket.recv(1024).decode()
         
@@ -95,10 +99,9 @@ def handle_client(client_socket, address, private_key):
             print(f"Invalid handshake data format: {data}")
             return
             
-        # Generate n2
         n2 = random.randint(1000, 9999)
         
-        # Send response with proper format
+        # send n2 n1 public key
         response = f"{public_key[0]},{public_key[1]},{n1},{n2}"
         client_socket.send(response.encode())
 
@@ -109,15 +112,20 @@ def handle_client(client_socket, address, private_key):
         des_key = decrypt_rsa(encrypted_des_key, private_key)
         print(f"Decrypted DES key for {username}: {des_key}")
 
-        # Decrypt and handle incoming messages from the client
+        # decrypt client message
         while True:
             encrypted_message = client_socket.recv(1024).decode()
             if not encrypted_message:
                 break
 
-            # Decrypt the message using the DES key
-            decrypted_message = decryption(encrypted_message, des_key)
-            print(f"Message from {username}: {decrypted_message}")
+            client_public_key = (e_client, n_client)  # public key di dapat dari proses handshake
+
+            # Dekripsi dua tahap
+            try:
+                decrypted_message = double_decrypt(encrypted_message, private_key, client_public_key)
+                print(f"Message from {username}: {decrypted_message}")
+            except Exception as e:
+                    print(f"Error decrypting message: {e}")
 
             # Broadcast the decrypted message to all connected clients except the sender
             for client, info in clients.items():
@@ -138,7 +146,7 @@ def handle_client(client_socket, address, private_key):
 def server_program():
     global public_key, private_key
     public_key, private_key = generate_key_pair()
-    send_key_to_pka()  # Send server's public key to PKA
+    send_key_to_pka()
 
     host = socket.gethostname()
     port = 5000
