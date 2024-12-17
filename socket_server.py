@@ -8,6 +8,22 @@ clients = {}  # Menyimpan informasi client (socket -> {"username": ..., "address
 private_key = None
 public_key = None
 
+def request_pka_public_key():
+    host = "127.0.0.1"
+    port = 6000
+
+    try:
+        pka_socket = socket.socket()
+        pka_socket.connect((host, port))
+        pka_socket.send(b"REQUEST_PKA_PUBLIC_KEY")
+        response = pka_socket.recv(1024).decode()
+        e, n = map(int, response.split(","))
+        return (e, n)
+    except Exception as e:
+        print(f"Error requesting PKA public key: {e}")
+        return None
+    finally:
+        pka_socket.close()
 
 def send_key_to_pka():
     host = "127.0.0.1"
@@ -23,22 +39,36 @@ def send_key_to_pka():
     except Exception as e:
         print(f"Error connecting to PKA: {e}")
 
-
 def request_client_public_key(username):
     host = "127.0.0.1"
     port = 6000
     try:
+        # First, get PKA's public key
+        pka_public_key = request_pka_public_key()
+        if not pka_public_key:
+            print("Failed to get PKA public key")
+            return None
+
         pka_socket = socket.socket()
         pka_socket.connect((host, port))
         pka_socket.send(f"REQUEST_KEY:{username}".encode())
         response = pka_socket.recv(1024).decode()
         pka_socket.close()
-        e, n = map(int, response.split(","))
+
+        if response == "Key not found.":
+            print("Client key not found in PKA")
+            return None
+
+        # Decrypt the key using PKA's public key
+        from rsa_code import decrypt_rsa_to_str  # Use the new function
+        decrypted_key = decrypt_rsa_to_str(response, pka_public_key)
+        
+        # Parse the decrypted key
+        e, n = map(int, decrypted_key.split(","))
         return (e, n)
     except Exception as e:
         print(f"Error connecting to PKA: {e}")
         return None
-
 
 def handle_client(client_socket, address, private_key):
     try:
@@ -76,7 +106,7 @@ def handle_client(client_socket, address, private_key):
         encrypted_des_key = client_socket.recv(1024).decode()
 
         # Decrypt the DES key using the RSA private key of the server
-        des_key = decrypt_rsa(int(encrypted_des_key), private_key)
+        des_key = decrypt_rsa(encrypted_des_key, private_key)
         print(f"Decrypted DES key for {username}: {des_key}")
 
         # Decrypt and handle incoming messages from the client
@@ -108,7 +138,7 @@ def handle_client(client_socket, address, private_key):
 def server_program():
     global public_key, private_key
     public_key, private_key = generate_key_pair()
-    send_key_to_pka()  # Kirim public key server ke PKA
+    send_key_to_pka()  # Send server's public key to PKA
 
     host = socket.gethostname()
     port = 5000

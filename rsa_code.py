@@ -1,71 +1,74 @@
 import random
-from math import gcd
 
-# Miller-Rabin untuk cek bilangan prima
-def is_prime(n, k=5):  
-    if n <= 1:
+def is_prime(num):
+    if num < 2:
         return False
-    if n <= 3:
-        return True
-    if n % 2 == 0:
-        return False
-
-    r, s = 0, n - 1
-    while s % 2 == 0:
-        r += 1
-        s //= 2
-
-    for _ in range(k):
-        a = random.randint(2, n - 2)
-        x = pow(a, s, n)
-        if x == 1 or x == n - 1:
-            continue
-        for _ in range(r - 1):
-            x = pow(x, 2, n)
-            if x == n - 1:
-                break
-        else:
+    for i in range(2, int(num ** 0.5) + 1):
+        if num % i == 0:
             return False
     return True
 
-def generate_prime(bits):
-    while True:
-        prime = random.getrandbits(bits)
-        if is_prime(prime):
-            return prime
+def generate_large_prime(start=100, end=1000):
+    prime = random.randint(start, end)
+    while not is_prime(prime):
+        prime = random.randint(start, end)
+    return prime
 
-def generate_key_pair(bits=2048):
-    p = generate_prime(bits // 2)
-    q = generate_prime(bits // 2)
-    while p == q:
-        q = generate_prime(bits // 2)
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+
+def modular_inverse(a, m):
+    m0, x0, x1 = m, 0, 1
+    while a > 1:
+        q = a // m
+        a, m = m, a % m
+        x0, x1 = x1 - q * x0, x0
+    return x1 + m0 if x1 < 0 else x1
+
+def generate_key_pair():
+    p = generate_large_prime()
+    q = generate_large_prime()
+    while q == p:  # Ensure p and q are different
+        q = generate_large_prime()
 
     n = p * q
     phi = (p - 1) * (q - 1)
-    e = 65537
-    if gcd(e, phi) != 1:
-        raise ValueError("e and phi(n) are not coprime")
 
-    def mod_inverse(a, m):
-        m0, x0, x1 = m, 0, 1
-        while a > 1:
-            q = a // m
-            m, a = a % m, m
-            x0, x1 = x1 - q * x0, x0
-        return x1 + m0 if x1 < 0 else x1
+    # Choose e (public key) that is coprime to phi
+    e = random.randint(2, phi - 1)
+    while gcd(e, phi) != 1:
+        e = random.randint(2, phi - 1)
 
-    d = mod_inverse(e, phi)
+    # Calculate d (private key) as modular inverse of e mod phi
+    d = modular_inverse(e, phi)
+
     return (e, n), (d, n)
 
-def encrypt_rsa(plaintext, public_key):
+def encrypt_rsa(plain_text, public_key):
+    """
+    Encrypt a message using RSA.
+    Supports both string input.
+    """
     e, n = public_key
-    plaintext_int = int.from_bytes(plaintext.encode(), 'big')
-    return pow(plaintext_int, e, n)
+    encrypted = [str(pow(ord(char), e, n)) for char in str(plain_text)]
+    return ",".join(encrypted)
 
-def decrypt_rsa(ciphertext, private_key):
+def decrypt_rsa(cipher_text, private_key):
+    """
+    Decrypt RSA-encrypted messages, supporting comma-separated values.
+    """
     d, n = private_key
-    plaintext_int = pow(ciphertext, d, n)
-    try:
-        return plaintext_int.to_bytes((plaintext_int.bit_length() + 7) // 8, 'big').decode()
-    except UnicodeDecodeError:
-        raise ValueError("Decrypted plaintext is not valid UTF-8.")
+    encrypted_values = map(int, cipher_text.split(","))
+    decrypted = ''.join([chr(pow(value, d, n)) for value in encrypted_values])
+    return decrypted
+
+def decrypt_rsa_to_str(cipher_text, public_key):
+    """
+    Decrypt an RSA-encrypted message using public key.
+    """
+    e, n = public_key
+    encrypted_values = map(int, cipher_text.split(","))
+    decrypted = ''.join([chr(pow(value, e, n)) for value in encrypted_values])
+    return decrypted

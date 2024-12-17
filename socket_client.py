@@ -7,6 +7,23 @@ public_key = None
 private_key = None
 
 
+def request_pka_public_key():
+    host = "127.0.0.1"
+    port = 6000
+
+    try:
+        pka_socket = socket.socket()
+        pka_socket.connect((host, port))
+        pka_socket.send(b"REQUEST_PKA_PUBLIC_KEY")
+        response = pka_socket.recv(1024).decode()
+        e, n = map(int, response.split(","))
+        return (e, n)
+    except Exception as e:
+        print(f"Error requesting PKA public key: {e}")
+        return None
+    finally:
+        pka_socket.close()
+
 def send_key_to_pka(username):
     host = "127.0.0.1"
     port = 6000
@@ -21,12 +38,17 @@ def send_key_to_pka(username):
     except Exception as e:
         print(f"Error connecting to PKA: {e}")
 
-
 def request_server_key():
     host = "127.0.0.1"
     port = 6000
 
     try:
+        # First, get PKA's public key
+        pka_public_key = request_pka_public_key()
+        if not pka_public_key:
+            print("Failed to get PKA public key")
+            return None
+
         pka_socket = socket.socket()
         pka_socket.connect((host, port))
         request = "REQUEST_KEY:server"
@@ -34,23 +56,29 @@ def request_server_key():
         pka_socket.send(request.encode())
         
         response = pka_socket.recv(1024).decode()
+        pka_socket.close()
+
         if response == "Key not found.":
             print("Server key not found in PKA")
             return None
             
+        # Decrypt the key using PKA's public key
+        from rsa_code import decrypt_rsa_to_str  # Use the new function
         try:
-            e, n = map(int, response.split(","))
-            print("Successfully received server key")
+            # Attempt to decrypt and parse the key
+            decrypted_key = decrypt_rsa_to_str(response, pka_public_key)
+            
+            # Parse the decrypted key
+            e, n = map(int, decrypted_key.split(","))
+            print("Successfully received and decrypted server key")
             return (e, n)
-        except ValueError as e:
+        except Exception as e:
             print(f"Error parsing server key: {e}")
             return None
             
     except Exception as e:
         print(f"Error connecting to PKA: {e}")
         return None
-    finally:
-        pka_socket.close()
 
 def client_handshake(client_socket, client_key):
     n1 = random.randint(1000, 9999)  # Generate a random number n1
